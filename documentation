@@ -1,0 +1,11 @@
+This folder contains the following test scripts
+
+* test_self_quadrature_quads_fmm3dbie: build quadrature for self based on splitting
+* axissym_chunkie_const: generating the data for axissymmetric data 
+                         on the disk
+* test_jacpts_open_surface: test how well jacobi quadrature works for 
+                            integrating 1/sqrt(d)
+* test_open_surface_solver: open surface solver using fmm3dbie. 
+                            DOES NOT WORK due to incorrect quadrature
+* helm_open_surface_example: debugging code for figuring out why 
+                             test_open_surface_solver did not work 
