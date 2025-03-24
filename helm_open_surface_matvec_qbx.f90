@@ -169,7 +169,7 @@
       call prin2('wl20=*',wl20,20)
 
       rsum = 0.0d0
-      do i=1,npol_jac
+      do i=1,norder_jac
         rsum = rsum + wj20(i)
       enddo
       call prin2('sum of jacobi weights=*',rsum,1)
@@ -213,7 +213,7 @@
         enddo
       enddo
 
-      call prin2('uvs_jac=*',uvs_jac,2*npol_jac)
+      call prin2('uvs_jac=*',uvs_jac(2,1:npol_jac),npol_jac)
 
       rsum = 0
       do i=1,nptso
