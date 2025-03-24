@@ -16,6 +16,12 @@ end
 [~,w,u,v] = lege.exps(nleg);
 fcoefs = u*fvals;
 save('fcoefs.mat', 'fcoefs');
+fileId = fopen('fcoefs.bin', 'w');
+fcoefsr = zeros(2,20);
+fcoefsr(1,:) = real(fcoefs.');
+fcoefsr(2,:) = imag(fcoefs.');
+fwrite(fileId, fcoefsr, 'double');
+fclose(fileId);
 
 A = load('~/git/fmm3dbie/examples/helmholtz/fort.34');
 [npts, ~] = size(A);
@@ -36,5 +42,5 @@ function f = get_axissym_kernel(t, rho, Sk)
     targinfo = [];
     targinfo.r = [rho; 0];
     f = Sk.eval(srcinfo, targinfo);
-    f = f.*sqrt(1-t.^2); 
+    f = f./sqrt(1-t.^2); 
 end

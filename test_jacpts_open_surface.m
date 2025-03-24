@@ -1,9 +1,9 @@
 run ~/git/fmm3dbie/matlab/startup.m
 ifac = 3;
 npars = [3;3;5];
-S = geometries.disk([1;1], 0.3,  npars, 8, 11);
+S = geometries.disk([1;1], 0.3,  npars, 9, 11);
 
-ipatch = npars(1)*npars(1) + npars(2)*7;
+ipatch = npars(1)*npars(1) + npars(2)*1;
 figure(1);
 clf
 plot(S, rand(S.npatches,1), 'FaceAlpha', 0.3);
@@ -19,8 +19,8 @@ f = @(u,v) adap_int(u, v, S.srccoefs{ipatch}, S.norders(ipatch));
 f1 = integral2(f, -1, 1, -1, 1, 'AbsTol', 1e-12, 'RelTol', 1e-9);
 
 %% now test jacpts
-[xj, wj] = jacpts(3, -0.5, 0);
-[xl, wl] = legpts(3);
+[xj, wj] = jacpts(20, -0.5, 0);
+[xl, wl] = legpts(20);
 
 [ujl, vjl] = meshgrid(xl, xj);
 [wjlx, wjly] = meshgrid(wl, wj);
@@ -40,7 +40,7 @@ function [f, ff] = adap_int(u, v, srccoefs, norder)
     rr = 1- (srcvals(1,:).^2 + srcvals(2,:).^2);
     rr = rr(:);
     dj = cross(srcvals(4:6,:), srcvals(7:9,:));
-    djnorm = vecnorm(dj, 2, 1);
+    djnorm = vecnorm(dj, 2);
     f = djnorm(:)./sqrt(rr);
     f = reshape(f, size(u));
     if nargout > 1
