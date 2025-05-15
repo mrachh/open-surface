@@ -1,23 +1,4 @@
       implicit real *8 (a-h,o-z)
-      integer norders_jac(4)
-
-      norders_jac(1) = 20
-      norders_jac(2) = 30
-      norders_jac(3) = 60
-      norders_jac(4) = 120
-      do i=1,5
-        nuse = 5*i
-        do j=4,4
-          call compute_error(norders_jac(j), nuse)
-        enddo
-      enddo
-      
-      
-      stop
-      end
-
-      subroutine compute_error(norder_jac, nuse)
-      implicit real *8 (a-h,o-z)
       real *8 rmid
       integer npars(3)
       real *8, allocatable :: ptinfo(:,:), srcvals(:,:), srccoefs(:,:)
@@ -26,6 +7,7 @@
       integer, allocatable :: ipatch_id(:)
       real *8, allocatable :: uvs_src(:,:), qwts(:)
       real *8, allocatable :: cms(:,:), rads(:)
+      real *8, allocatable :: targs(:,:)
       real *8, allocatable :: centers(:,:)
       real *8, allocatable :: wlege(:)
       complex *16, allocatable :: fints(:)
@@ -40,16 +22,53 @@
       real *8, allocatable :: srcover(:,:), wtsover(:)
       real *8, allocatable :: uvs_jac(:,:), wts_jac(:)
       real *8, allocatable :: pmat(:,:)
-      complex *16, allocatable :: charges(:)
-      complex *16, allocatable :: pvals(:), pex(:)
+      real *8, allocatable :: charges(:)
+      real *8, allocatable :: pvals(:)
       complex *16, allocatable :: taexp(:,:,:)
+      complex *16 z, ztmp, ima
 
       complex *16 zk
-      character *100 fname 
+      character *100 fname, ftarg, dirname 
       integer, allocatable :: row_ptr(:), col_ind(:), iquad(:)
       external h3d_slp_disk, h3d_slp
-      
+
+      data ima/(0.0d0,1.0d0)/
+
+
       call prini(6,13)
+
+      done = 1.0d0
+      pi = atan(done)*4.0d0
+      norder_jac = 120
+      nuse = 60
+
+      dirname = 'scott_vicente/'
+      ep = 0.0d0
+
+      if(ep.eq.0) then
+        ftarg = trim(dirname)//'eps_0.csv'
+      elseif(abs(ep-1.0d-1).le.1.0d-14) then
+        ftarg = trim(dirname)//'eps_1e-1.csv'
+      elseif(abs(ep-1.0d-2).le.1.0d-14) then
+        ftarg = trim(dirname)//'eps_1e-2.csv'
+      elseif(abs(ep-1.0d-3).le.1.0d-14) then
+        ftarg = trim(dirname)//'eps_1e-3.csv'
+      endif
+
+      ntarg = 1280
+      allocate(targs(3,ntarg), centers(3,ntarg))
+
+      open(unit=37, file=trim(ftarg))
+      do i=1,ntarg
+        read(37,*) targs(1,i), targs(2,i)
+        targs(3,i) = 0
+      enddo
+
+      call prin2('targs=*',targs,24)
+      
+  
+      npow = 5
+      
       rmid = 0.3d0
       npars(1) = 6
       npars(2) = 6
@@ -57,7 +76,6 @@
       
       iort = 1
       
-
       norder = 4
       iptype0 = 11
       call mesh_circle_pts_mem(rmid, npars, iort, norder, iptype0, &
@@ -80,38 +98,53 @@
         ptinfo, ptcoefs)
 
       do i=1,npts
-        srcvals(1,i) = ptinfo(1,i)
-        srcvals(2,i) = ptinfo(2,i)
+        x = ptinfo(1,i)
+        y = ptinfo(2,i)
+        r = sqrt(x**2 + y**2)
+        thet = atan2(y,x)
+        cnt = cos((n+1)*thet)
+        snt = sin((n+1)*thet)
+        rn1 = r**(n+1)
+        srcvals(1,i) = ptinfo(1,i) + ep*rn1*cnt
+        srcvals(2,i) = ptinfo(2,i) + ep*rn1*snt
         srcvals(3,i) = 0
 
-        srcvals(4,i) = ptinfo(3,i)
-        srcvals(5,i) = ptinfo(4,i)
+        drdx = x/r
+        drdy = y/r
+
+        dthetdx = -y/r**2
+        dthetdy = x/r**2
+
+        df1dx = 1 + ep*(n+1)*rn1*(cnt*x + y*snt)/r**2
+        df1dy = ep*(n+1)*rn1*(cnt*y - x*snt)/r**2
+        
+        df2dx = ep*(n+1)*rn1*(snt*x - y*cnt)/r**2
+        df2dy = 1 + ep*(n+1)*rn1*(snt*y + x*cnt)/r**2
+                   
+        dxdu = ptinfo(3,i)
+        dydu = ptinfo(4,i)
+        
+        dxdv = ptinfo(5,i)
+        dydv = ptinfo(6,i)
+
+        srcvals(4,i) = df1dx*dxdu + df1dy*dydu 
+        srcvals(5,i) = df2dx*dxdu + df2dy*dydu 
         srcvals(6,i) = 0
 
-        srcvals(7,i) = ptinfo(5,i)
-        srcvals(8,i) = ptinfo(6,i)
+        srcvals(7,i) = df1dx*dxdv + df1dy*dydv 
+        srcvals(8,i) = df2dx*dxdv + df2dy*dydv 
         srcvals(9,i) = 0
 
         srcvals(10,i) = 0
         srcvals(11,i) = 0
         srcvals(12,i) = 1
         
-        srccoefs(1,i) = ptcoefs(1,i)
-        srccoefs(2,i) = ptcoefs(2,i)
-        srccoefs(3,i) = 0
-
-        srccoefs(4,i) = ptcoefs(3,i)
-        srccoefs(5,i) = ptcoefs(4,i)
-        srccoefs(6,i) = 0
-
-        srccoefs(7,i) = ptcoefs(5,i)
-        srccoefs(8,i) = ptcoefs(6,i)
-        srccoefs(9,i) = 0
       enddo
+      call surf_vals_to_coefs(9, npatches, norders, ixyzs, iptype, npts, &
+        srcvals(1:9,1:npts), srccoefs) 
 
       call prin2('srcvals=*',srcvals,24)
       call prin2('srccoefs=*',srccoefs,24)
-
 
 !
 !
@@ -181,13 +214,12 @@
 
       allocate(charges(nptso))
       
-      rsum = 0
       do i=1,nptso
-        rsum = rsum + wtsover(i)
-        dd = srcover(1,i)**2 + srcover(2,i)**2
+        z = srcover(1,i) + ima*srcover(2,i)
+        ztmp = z*exp(-ep*(z**n))
+        dd = abs(ztmp)**2 
         charges(i) = 1.0d0/sqrt(1.0d0 - dd)*wtsover(i)
       enddo
-      call prin2('area of circle=*',rsum,1)
 !
 !
 !  now replace patches on the periphery with the tensor 
@@ -240,7 +272,9 @@
           call cross_prod3d(srcover(4,jpt), srcover(7,jpt), vtmp)
           wtsover(jpt) = sqrt(vtmp(1)**2 + vtmp(2)**2 + vtmp(3)**2)* &
             wts_jac(j)
-          dd = srcover(1,jpt)**2 + srcover(2,jpt)**2
+          z = srcover(1,jpt) + ima*srcover(2,jpt)
+          ztmp = z*exp(-ep*(z**n))
+          dd = abs(ztmp)**2 
           srcover(12,jpt) = iort/abs(iort)
           charges(jpt) = 1.0d0/sqrt(1.0d0 - dd)* & 
              wtsover(jpt)*sqrt(1-uvs_jac(2,j))
@@ -253,26 +287,6 @@
       enddo
 
 
-      rsum = 0
-      do i=1,nptso
-        rsum = rsum + real(charges(i))
-      enddo
-
-
-      done = 1.0d0
-      pi = atan(done)*4.0d0
-
-      call prin2('rsum=*',rsum,1)
-      call prin2('error in integral=*',abs(rsum-2*pi),1)
-
-      rsum2 = 0
-      ipatch = npars(1)*npars(1) + npars(2)*1
-      call prinf('ipatch=*',ipatch,1)
-      do j=ixyzso(ipatch),ixyzso(ipatch+1)-1
-        rsum2 = rsum2 + real(charges(j))
-      enddo
-      call prin2('rsum2=*',rsum2,1)
-
       print *, ""
       print *, ""
       print *, "====================="
@@ -280,68 +294,59 @@
       print *, "Qbx testing begins now"
       print *, ""
       print *, "====================="
- 
-      allocate(cms(3,npatches), rads(npatches))
-      call get_centroid_rads(npatches, norders, ixyzs, iptype, npts, &
-        srccoefs, cms, rads)
 
-      allocate(centers(3,npts))
-      do i=1,npatches
-        do j = ixyzs(i), ixyzs(i+1)-1
-          d1 = rads(i)
-          dd = (1.0d0 - sqrt(srcvals(1,j)**2 + srcvals(2,j)**2))/2
-          if(dd.le.d1) d1 = dd
-          centers(1,j) = srcvals(1,j)
-          centers(2,j) = srcvals(2,j)
-          centers(3,j) = d1
-        enddo
+      
+      print *, "ntarg=",ntarg
+      do i=1,ntarg
+        d1 = 0.25d0
+        z = targs(1,i) + ima*targs(2,i)
+        ztmp = z*exp(-ep*(z**n))
+        dd = abs(ztmp)**2 
+        dd = (1.0d0 - sqrt(dd))/2
+        if(dd.le.d1) d1 = dd
+        centers(1,i) = targs(1,i)
+        centers(2,i) = targs(2,i) 
+        centers(3,i) = d1
       enddo
+      call prin2('centers=*',centers,24)
+      call prin2('targs=*',targs,24)
 
-      allocate(pvals(npts), pex(npts))
+
+      allocate(pvals(ntarg))
       nlege = 100
       lw7 = (nlege+1)**2*4
       allocate(wlege(lw7))
       call ylgndrfwini(nlege, wlege, lw7, lused7)
 
-
-      zk = 2.1d0
       
       allocate(taexp(0:nuse,-nuse:nuse,npts))
       rscales = 1.0d0
       charges = charges/4/pi
 
-      fname = './data/results.dat'
+      fname = trim(dirname)//'results_lap_scott_vicente.dat'
       open(unit=35,file=trim(fname), access='append')
-
-      do i=1,npts
-        x = srcvals(1,i)
-        y = srcvals(2,i)
-        rr = sqrt(x**2 + y**2)
-        ruse = 2*rr - 1
-
-        thet = atan2(y,x)
+!!!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)
+      do i=1,30
+        print *, "itarg=",i
         pvals(i) = 0
-        pex(i) = 0
         
-        if(abs(thet).le.0.01d0.and.rr.gt.0.95d0) then
-          taexp = 0
-          call h3dformtac(1, zk, rscales, srcover(1:3,1:nptso), &
+        if(abs(centers(3,i)).ge.0.001d0) then
+          taexp(0:nuse,-nuse:nuse,i) = 0
+          call l3dformtac(1, rscales, srcover(1:3,1:nptso), &
             charges, nptso, centers(1,i), nuse, taexp(0,-nuse,i), &
             wlege, nlege)
+
           
-          call h3dtaevalp(1, zk, rscales, centers(1,i), &
-            taexp(0,-nuse,i), nuse, srcvals(1,i), 1, pvals(i), &
+          call l3dtaevalp(1, rscales, centers(1,i), &
+            taexp(0,-nuse,i), nuse, targs(1,i), 1, pvals(i), &
             wlege, nlege)
-
-          call legepols(ruse, nfcoef-1, pols)
-          do j=1,nfcoef
-            pex(i) = pex(i) + fcoefs(j)*pols(j)
-          enddo
-
-          write(35,*) nuse, norder_jac, 1.0d0-rr, centers(3,i), abs(pvals(i)-pex(i))
-          print *, nuse, norder_jac, abs(pvals(i)-pex(i))
         endif
 
+      enddo
+!!!$OMP END PARALLEL DO
+      do i=1,30
+        write(35,*) nuse, norder_jac, targs(1,i), targs(2,i), &
+             centers(3,i), pvals(i)
       enddo
       close(35)
       
