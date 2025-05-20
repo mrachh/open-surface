@@ -39,8 +39,8 @@
 
       done = 1.0d0
       pi = atan(done)*4.0d0
-      norder_jac = 120
-      nuse = 60
+      norder_jac = 30
+      nuse = 15
 
       dirname = 'scott_vicente/'
       ep = 0.0d0
@@ -326,11 +326,11 @@
       fname = trim(dirname)//'results_lap_scott_vicente.dat'
       open(unit=35,file=trim(fname), access='append')
 !!!$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i)
-      do i=1,30
+      do i=1,300
         print *, "itarg=",i
         pvals(i) = 0
         
-        if(abs(centers(3,i)).ge.0.001d0) then
+        if(abs(centers(3,i)).ge.0.1d0) then
           taexp(0:nuse,-nuse:nuse,i) = 0
           call l3dformtac(1, rscales, srcover(1:3,1:nptso), &
             charges, nptso, centers(1,i), nuse, taexp(0,-nuse,i), &
@@ -340,14 +340,12 @@
           call l3dtaevalp(1, rscales, centers(1,i), &
             taexp(0,-nuse,i), nuse, targs(1,i), 1, pvals(i), &
             wlege, nlege)
+          write(35,*) nuse, norder_jac, targs(1,i), targs(2,i), &
+             centers(3,i), pvals(i)
         endif
 
       enddo
 !!!$OMP END PARALLEL DO
-      do i=1,30
-        write(35,*) nuse, norder_jac, targs(1,i), targs(2,i), &
-             centers(3,i), pvals(i)
-      enddo
       close(35)
       
       
